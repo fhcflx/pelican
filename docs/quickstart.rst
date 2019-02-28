@@ -28,8 +28,9 @@ by asking some questions about your site::
     pelican-quickstart
 
 For questions that have default values denoted in brackets, feel free to use
-the Return key to accept those default values. When asked for your URL prefix,
-enter your domain name as indicated (e.g., ``http://example.com``).
+the Return key to accept those default values [#tzlocal_fn]_. When asked for
+your URL prefix, enter your domain name as indicated (e.g.,
+``http://example.com``).
 
 Create an article
 -----------------
@@ -53,22 +54,29 @@ From your site directory, run the ``pelican`` command to generate your site::
 
     pelican content
 
-Your site has now been generated inside the ``output`` directory. (You may see a
-warning related to feeds, but that is normal when developing locally and can be
-ignored for now.)
+Your site has now been generated inside the ``output`` directory. (You may see
+a warning related to feeds, but that is normal when developing locally and can
+be ignored for now.)
 
 Preview your site
 -----------------
 
-Open a new terminal session and run the following commands to switch to your
-``output`` directory and launch Pelican's web server::
+Open a new terminal session, navigate to your site directory and run the
+following command to launch Pelican's web server::
 
-    cd ~/projects/yoursite/output
-    python -m pelican.server
+    pelican --listen
 
 Preview your site by navigating to http://localhost:8000/ in your browser.
 
-Continue reading the other documentation sections for more detail, and check out
-the Pelican wiki's Tutorials_ page for links to community-published tutorials.
+Continue reading the other documentation sections for more detail, and check
+out the Pelican wiki's Tutorials_ page for links to community-published
+tutorials.
 
 .. _Tutorials: https://github.com/getpelican/pelican/wiki/Tutorials
+
+Footnotes
+---------
+
+.. [#tzlocal_fn] You can help localize default fields by installing the
+                 optional `tzlocal <https://pypi.python.org/pypi/tzlocal>`_
+                 module.

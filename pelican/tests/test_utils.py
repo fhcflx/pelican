@@ -11,6 +11,8 @@ from tempfile import mkdtemp
 
 import pytz
 
+import six
+
 from pelican import utils
 from pelican.generators import TemplatePagesGenerator
 from pelican.settings import read_settings
@@ -117,8 +119,11 @@ class TestUtils(LoggedTestCase):
                    ('大飯原発４号機、１８日夜起動へ',
                     'da-fan-yuan-fa-4hao-ji-18ri-ye-qi-dong-he'),)
 
+        settings = read_settings()
+        subs = settings['SLUG_REGEX_SUBSTITUTIONS']
+
         for value, expected in samples:
-            self.assertEqual(utils.slugify(value), expected)
+            self.assertEqual(utils.slugify(value, regex_subs=subs), expected)
 
     def test_slugify_substitute(self):
 
@@ -127,21 +132,27 @@ class TestUtils(LoggedTestCase):
                    ('c++, c#, C#, C++', 'cpp-c-sharp-c-sharp-cpp'),
                    ('c++-streams', 'cpp-streams'),)
 
-        subs = (('C++', 'CPP'), ('C#', 'C-SHARP'))
+        settings = read_settings()
+        subs = [
+            (r'C\+\+', 'CPP'),
+            (r'C#', 'C-SHARP'),
+        ] + settings['SLUG_REGEX_SUBSTITUTIONS']
         for value, expected in samples:
-            self.assertEqual(utils.slugify(value, subs), expected)
+            self.assertEqual(utils.slugify(value, regex_subs=subs), expected)
 
     def test_slugify_substitute_and_keeping_non_alphanum(self):
 
         samples = (('Fedora QA', 'fedora.qa'),
                    ('C++ is used by Fedora QA', 'cpp is used by fedora.qa'),
-                   ('C++ is based on C', 'cpp-is-based-on-c'),
-                   ('C+++ test C+ test', 'cpp-test-c-test'),)
+                   ('C++ is based on C', 'cpp is based on c'),
+                   ('C+++ test C+ test', 'cpp+ test c+ test'),)
 
-        subs = (('Fedora QA', 'fedora.qa', True),
-                ('c++', 'cpp'),)
+        subs = [
+            (r'Fedora QA', 'fedora.qa'),
+            (r'c\+\+', 'cpp'),
+        ]
         for value, expected in samples:
-            self.assertEqual(utils.slugify(value, subs), expected)
+            self.assertEqual(utils.slugify(value, regex_subs=subs), expected)
 
     def test_get_relative_path(self):
 
@@ -215,47 +226,100 @@ class TestUtils(LoggedTestCase):
             utils.truncate_html_words("&#x222b;dx " * 100, 20),
             "&#x222b;dx " * 20 + '…')
 
+        # Words with invalid or broken HTML references.
+        self.assertEqual(
+            utils.truncate_html_words('&invalid;', 20), '&invalid;')
+        self.assertEqual(
+            utils.truncate_html_words('&#9999999999;', 20), '&#9999999999;')
+        self.assertEqual(
+            utils.truncate_html_words('&#xfffffffff;', 20), '&#xfffffffff;')
+        self.assertEqual(
+            utils.truncate_html_words('&mdash text', 20), '&mdash text')
+        self.assertEqual(
+            utils.truncate_html_words('&#1234 text', 20), '&#1234 text')
+        self.assertEqual(
+            utils.truncate_html_words('&#xabc text', 20), '&#xabc text')
+
     def test_process_translations(self):
+        fr_articles = []
+        en_articles = []
+
         # create a bunch of articles
-        # 1: no translation metadata
-        fr_article1 = get_article(lang='fr', slug='yay', title='Un titre',
-                                  content='en français')
-        en_article1 = get_article(lang='en', slug='yay', title='A title',
-                                  content='in english')
-        # 2: reverse which one is the translation thanks to metadata
-        fr_article2 = get_article(lang='fr', slug='yay2', title='Un titre',
-                                  content='en français')
-        en_article2 = get_article(lang='en', slug='yay2', title='A title',
-                                  content='in english',
-                                  extra_metadata={'translation': 'true'})
+        # 0: no translation metadata
+        fr_articles.append(get_article(lang='fr', slug='yay0', title='Titre',
+                                       content='en français'))
+        en_articles.append(get_article(lang='en', slug='yay0', title='Title',
+                                       content='in english'))
+        # 1: translation metadata on default lang
+        fr_articles.append(get_article(lang='fr', slug='yay1', title='Titre',
+                                       content='en français'))
+        en_articles.append(get_article(lang='en', slug='yay1', title='Title',
+                                       content='in english',
+                                       translation='true'))
+        # 2: translation metadata not on default lang
+        fr_articles.append(get_article(lang='fr', slug='yay2', title='Titre',
+                                       content='en français',
+                                       translation='true'))
+        en_articles.append(get_article(lang='en', slug='yay2', title='Title',
+                                       content='in english'))
         # 3: back to default language detection if all items have the
         #    translation metadata
-        fr_article3 = get_article(lang='fr', slug='yay3', title='Un titre',
-                                  content='en français',
-                                  extra_metadata={'translation': 'yep'})
-        en_article3 = get_article(lang='en', slug='yay3', title='A title',
-                                  content='in english',
-                                  extra_metadata={'translation': 'yes'})
+        fr_articles.append(get_article(lang='fr', slug='yay3', title='Titre',
+                                       content='en français',
+                                       translation='yep'))
+        en_articles.append(get_article(lang='en', slug='yay3', title='Title',
+                                       content='in english',
+                                       translation='yes'))
+        # 4-5: translation pairs with the same slug but different category
+        fr_articles.append(get_article(lang='fr', slug='yay4', title='Titre',
+                                       content='en français', category='foo'))
+        en_articles.append(get_article(lang='en', slug='yay4', title='Title',
+                                       content='in english', category='foo'))
+        fr_articles.append(get_article(lang='fr', slug='yay4', title='Titre',
+                                       content='en français', category='bar'))
+        en_articles.append(get_article(lang='en', slug='yay4', title='Title',
+                                       content='in english', category='bar'))
 
-        articles = [fr_article1, en_article1, fr_article2, en_article2,
-                    fr_article3, en_article3]
+        # try adding articles in both orders
+        for lang0_articles, lang1_articles in ((fr_articles, en_articles),
+                                               (en_articles, fr_articles)):
+            articles = lang0_articles + lang1_articles
 
-        index, trans = utils.process_translations(articles)
+            # test process_translations with falsy translation_id
+            index, trans = utils.process_translations(
+                articles, translation_id=None)
+            for i in range(6):
+                for lang_articles in [en_articles, fr_articles]:
+                    self.assertIn(lang_articles[i], index)
+                    self.assertNotIn(lang_articles[i], trans)
 
-        self.assertIn(en_article1, index)
-        self.assertIn(fr_article1, trans)
-        self.assertNotIn(en_article1, trans)
-        self.assertNotIn(fr_article1, index)
+            # test process_translations with simple and complex translation_id
+            for translation_id in ['slug', {'slug', 'category'}]:
+                index, trans = utils.process_translations(
+                    articles, translation_id=translation_id)
 
-        self.assertIn(fr_article2, index)
-        self.assertIn(en_article2, trans)
-        self.assertNotIn(fr_article2, trans)
-        self.assertNotIn(en_article2, index)
+                for a in [en_articles[0], fr_articles[1], en_articles[2],
+                          en_articles[3], en_articles[4], en_articles[5]]:
+                    self.assertIn(a, index)
+                    self.assertNotIn(a, trans)
 
-        self.assertIn(en_article3, index)
-        self.assertIn(fr_article3, trans)
-        self.assertNotIn(en_article3, trans)
-        self.assertNotIn(fr_article3, index)
+                for a in [fr_articles[0], en_articles[1], fr_articles[2],
+                          fr_articles[3], fr_articles[4], fr_articles[5]]:
+                    self.assertIn(a, trans)
+                    self.assertNotIn(a, index)
+
+                for i in range(6):
+                    self.assertIn(en_articles[i], fr_articles[i].translations)
+                    self.assertIn(fr_articles[i], en_articles[i].translations)
+
+                for a_arts in [en_articles, fr_articles]:
+                    for b_arts in [en_articles, fr_articles]:
+                        if translation_id == 'slug':
+                            self.assertIn(a_arts[4], b_arts[5].translations)
+                            self.assertIn(a_arts[5], b_arts[4].translations)
+                        elif translation_id == {'slug', 'category'}:
+                            self.assertNotIn(a_arts[4], b_arts[5].translations)
+                            self.assertNotIn(a_arts[5], b_arts[4].translations)
 
     def test_watchers(self):
         # Test if file changes are correctly detected
@@ -650,3 +714,34 @@ class TestDateFormatter(unittest.TestCase):
         with utils.pelican_open(output_path) as output_file:
             self.assertEqual(output_file,
                              utils.strftime(self.date, 'date = %A, %d %B %Y'))
+
+
+class TestSanitisedJoin(unittest.TestCase):
+    def test_detect_parent_breakout(self):
+        with six.assertRaisesRegex(
+                self,
+                RuntimeError,
+                "Attempted to break out of output directory to /foo/test"):
+            utils.sanitised_join(
+                "/foo/bar",
+                "../test"
+            )
+
+    def test_detect_root_breakout(self):
+        with six.assertRaisesRegex(
+                self,
+                RuntimeError,
+                "Attempted to break out of output directory to /test"):
+            utils.sanitised_join(
+                "/foo/bar",
+                "/test"
+            )
+
+    def test_pass_deep_subpaths(self):
+        self.assertEqual(
+            utils.sanitised_join(
+                "/foo/bar",
+                "test"
+            ),
+            os.path.join("/foo/bar", "test")
+        )

@@ -24,6 +24,9 @@ class BaseFormatter(logging.Formatter):
         record.__dict__['customlevelname'] = customlevel
         # format multiline messages 'nicely' to make it clear they are together
         record.msg = record.msg.replace('\n', '\n  | ')
+        record.args = tuple(arg.replace('\n', '\n  | ') if
+                            isinstance(arg, six.string_types) else
+                            arg for arg in record.args)
         return super(BaseFormatter, self).format(record)
 
     def formatException(self, ei):
@@ -91,13 +94,16 @@ class LimitFilter(logging.Filter):
     E.g.: log.warning(('43 is not the answer', 'More erroneous answers'))
     """
 
+    LOGS_DEDUP_MIN_LEVEL = logging.WARNING
+
     _ignore = set()
+    _raised_messages = set()
     _threshold = 5
     _group_count = defaultdict(int)
 
     def filter(self, record):
         # don't limit log messages for anything above "warning"
-        if record.levelno > logging.WARN:
+        if record.levelno > self.LOGS_DEDUP_MIN_LEVEL:
             return True
 
         # extract group
@@ -105,12 +111,18 @@ class LimitFilter(logging.Filter):
         group_args = record.__dict__.get('limit_args', ())
 
         # ignore record if it was already raised
-        # use .getMessage() and not .msg for string formatting
-        ignore_key = (record.levelno, record.getMessage())
-        if ignore_key in self._ignore:
+        message_key = (record.levelno, record.getMessage())
+        if message_key in self._raised_messages:
             return False
         else:
-            self._ignore.add(ignore_key)
+            self._raised_messages.add(message_key)
+
+        # ignore LOG_FILTER records by templates when "debug" isn't enabled
+        logger_level = logging.getLogger().getEffectiveLevel()
+        if logger_level > logging.DEBUG:
+            ignore_key = (record.levelno, record.msg)
+            if ignore_key in self._ignore:
+                return False
 
         # check if we went over threshold
         if group:
@@ -150,7 +162,7 @@ class SafeLogger(logging.Logger):
         so convert the message to unicode with the correct encoding
         '''
         if isinstance(arg, Exception):
-            text = '%s: %s' % (arg.__class__.__name__, arg)
+            text = str('%s: %s') % (arg.__class__.__name__, arg)
             if six.PY2:
                 text = text.decode(self._exc_encoding)
             return text
@@ -190,6 +202,7 @@ class FatalLogger(LimitLogger):
         if FatalLogger.errors_fatal:
             raise RuntimeError('Error encountered')
 
+
 logging.setLoggerClass(FatalLogger)
 
 
@@ -218,7 +231,8 @@ def get_formatter():
         return TextFormatter()
 
 
-def init(level=None, fatal='', handler=logging.StreamHandler(), name=None):
+def init(level=None, fatal='', handler=logging.StreamHandler(), name=None,
+         logs_dedup_min_level=None):
     FatalLogger.warnings_fatal = fatal.startswith('warning')
     FatalLogger.errors_fatal = bool(fatal)
 
@@ -229,6 +243,8 @@ def init(level=None, fatal='', handler=logging.StreamHandler(), name=None):
 
     if level:
         logger.setLevel(level)
+    if logs_dedup_min_level:
+        LimitFilter.LOGS_DEDUP_MIN_LEVEL = logs_dedup_min_level
 
 
 def log_warnings():

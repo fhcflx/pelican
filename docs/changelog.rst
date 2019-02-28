@@ -1,20 +1,99 @@
 Release history
 ###############
 
-Next release
-============
+Next Release
+==================
 
-* ``SLUG_SUBSTITUTIONS`` now accepts 3-tuple elements, allowing to keep
-  non-alphanum characters. Existing 2-tuple configurations will continue to work
-  without change in behavior. The new 3rd parameter has side effects when there
-  are multiple substitutions defined. Plese see the docs.
+
+4.0.1 (2018-11-30)
+==================
+
+* Refactor ``pelican.server`` logging
+* Fix bug in which all static files were processed as "draft"
+* Bug fixes for Invoke/Makefile automation, Importer, and other miscellanea
+
+If upgrading from 3.7.x or earlier, please note that slug-related settings in
+4.0+ use ``{slug}`` and/or ``{lang}`` rather than ``%s``. If ``%s``-style
+settings are encountered, Pelican will emit a warning and fall back to the
+default setting. Some user-submitted themes might try to format setting values
+but fail upon site build with a ``TypeError``. In such cases, the theme needs
+to be updated. For example, instead of ``TAG_FEED_ATOM|format(tag.slug)``, use
+``TAG_FEED_ATOM.format(slug=tag.slug)``
+
+4.0.0 (2018-11-13)
+==================
+
+* Replace ``develop_server.sh`` script with ``pelican --listen``
+* Improved copy/link behavior for large static files (e.g., videos)
+* New ``{static}`` syntax to link to static content; content linked to by
+  ``{static}`` and ``{attach}`` is automatically copied over even if not in
+  ``STATIC_PATHS``
+* Pages can now have ``draft`` status
+* Show current settings via new ``--print-settings`` flag
+* All settings for slugs now use ``{slug}`` and/or ``{lang}`` rather than
+  ``%s``. If ``%s``-style settings are encountered, Pelican will emit a warning
+  and fallback to the default setting.
+* New signals: ``feed_generated`` and ``page_generated_write_page``
+* Replace Fabric with Invoke and ``fabfile.py`` template with ``tasks.py``
+* Replace ``PAGINATED_DIRECT_TEMPLATES`` by ``PAGINATED_TEMPLATES``, extending
+  control over pagination to all templates and making page size variable
+* Replace ``SLUG_SUBSTITUTIONS`` (and friends) by ``SLUG_REGEX_SUBSTITUTIONS``
+  for more finegrained control
+* ``'{base_name}'`` value in ``PAGINATION_PATTERNS`` setting no longer strips
+  ``'bar'`` from ``'foo/bar.html'`` (unless ``'bar' == 'index'``).
+* ``ARTICLE_ORDER_BY`` and ``PAGE_ORDER_BY`` now also affect 1) category, tag
+  and author pages 2) feeds 3) draft and hidden articles and pages
+* New ``ARTICLE_TRANSLATION_ID`` and ``PAGE_TRANSLATION_ID`` settings to
+  specify metadata attributes used to identify/disable translations
+* Make the HTML reader parse multiple occurrences of metadata tags as a list
+* New Blogger XML backup importer
+* Wordpress importer now updates file links to point to local copies if the
+  files were downloaded with ``--wp-attach``.
+* Importer no longer inserts extra newlines, to prevent breaking of HTML
+  attributes.
+* Pelican server now prioritises ``foo.html`` and ``foo/index.html`` over
+  ``foo/`` when resolving ``foo``.
+
+3.7.1 (2017-01-10)
+==================
+
+* Fix locale issues in Quickstart script
+* Specify encoding for README and CHANGELOG in setup.py
+
+3.7.0 (2016-12-12)
+==================
+
+* Atom feeds output ``<content>`` in addition to ``<summary>``
+* Atom feeds use ``<published>`` for the original publication date and
+  ``<updated>`` for modifications
+* Simplify Atom feed ID generation and support URL fragments
+* Produce category feeds with category-specific titles
+* RSS feeds now default to summary instead of full content;
+  set ``RSS_FEED_SUMMARY_ONLY = False`` to revert to previous behavior
+* Replace ``MD_EXTENSIONS`` with ``MARKDOWN`` setting
+* Replace ``JINJA_EXTENSIONS`` with more-robust ``JINJA_ENVIRONMENT`` setting
+* Improve summary truncation logic to handle special characters and tags that
+  span multiple lines, using HTML parser instead of regular expressions
+* Include summary when looking for intra-site link substitutions
+* Link to authors and index via ``{author}name`` and ``{index}`` syntax
+* Override widget names via ``LINKS_WIDGET_NAME`` and ``SOCIAL_WIDGET_NAME``
+* Add ``INDEX_SAVE_AS`` option to override default ``index.html`` value
+* Remove ``PAGES`` context variable for themes in favor of ``pages``
+* ``SLUG_SUBSTITUTIONS`` now accepts 3-tuple elements, allowing URL slugs to
+  contain non-alphanumeric characters
 * Tag and category slugs can be controlled with greater precision using the
-  ``TAG_SUBSTITUTIONS`` and ``CATEGORY_SUBSTITUTIONS`` settings. These also
-  allow for keeping non-alphanum characters for backward compatibility with
-  existing URLs.
+  ``TAG_SUBSTITUTIONS`` and ``CATEGORY_SUBSTITUTIONS`` settings
 * Author slugs can be controlled with greater precision using the
-  ``AUTHOR_SUBSTITUTIONS`` setting. Keeping non-alphanum characters is supported
-  as well but discouraged.
+  ``AUTHOR_SUBSTITUTIONS`` setting
+* ``DEFAULT_DATE`` can be defined as a string
+* Use ``mtime`` instead of ``ctime`` when ``DEFAULT_DATE = 'fs'``
+* Add ``--fatal=errors|warnings`` option for use with continuous integration
+* When using generator-level caching, ensure previously-cached files are
+  processed instead of just new files.
+* Add Python and Pelican version information to debug output
+* Improve compatibility with Python 3.5
+* Comply with and enforce PEP8 guidelines
+* Replace tables in settings documentation with ``data::`` directives
 
 3.6.3 (2015-08-14)
 ==================
@@ -60,8 +139,8 @@ Next release
   directory as articles and pages using ``{attach}`` in the path.
 * Prevent Pelican from raising an exception when there are duplicate pieces of
   metadata in a Markdown file.
-* Introduce the ``TYPOGRIFY_IGNORE_TAGS`` setting to add HTML tags to be ignored
-  by Typogrify.
+* Introduce the ``TYPOGRIFY_IGNORE_TAGS`` setting to add HTML tags to be
+  ignored by Typogrify.
 * Add the ability to use ``-`` in date formats to strip leading zeros. For
   example, ``%-d/%-m/%y`` will now result in the date ``9/8/12``.
 * Ensure feed generation is correctly disabled during quickstart configuration.
@@ -164,8 +243,10 @@ Next release
 * Improve appearance of LinkedIn icon in default theme
 * Add GitHub and Google+ social icons support in default theme
 * Optimize social icons
-* Add ``FEED_ALL_ATOM`` and ``FEED_ALL_RSS`` to generate feeds containing all posts regardless of their language
-* Split ``TRANSLATION_FEED`` into ``TRANSLATION_FEED_ATOM`` and ``TRANSLATION_FEED_RSS``
+* Add ``FEED_ALL_ATOM`` and ``FEED_ALL_RSS`` to generate feeds containing all
+  posts regardless of their language
+* Split ``TRANSLATION_FEED`` into ``TRANSLATION_FEED_ATOM`` and
+  ``TRANSLATION_FEED_RSS``
 * Different feeds can now be enabled/disabled individually
 * Allow for blank author: if ``AUTHOR`` setting is not set, author won't
   default to ``${USER}`` anymore, and a post won't contain any author
@@ -173,7 +254,8 @@ Next release
 * Move LESS and Webassets support from Pelican core to plugin
 * The ``DEFAULT_DATE`` setting now defaults to ``None``, which means that
   articles won't be generated unless date metadata is specified
-* Add ``FILENAME_METADATA`` setting to support metadata extraction from filename
+* Add ``FILENAME_METADATA`` setting to support metadata extraction from
+  filename
 * Add ``gzip_cache`` plugin to compress common text files into a ``.gz``
   file within the same directory as the original file, preventing the server
   (e.g. Nginx) from having to compress files during an HTTP call
@@ -244,7 +326,8 @@ Next release
 * Added translations
 * Added a way to use cleaner URLs with a rewrite url module (or equivalent)
 * Added a tag cloud
-* Added an autoreloading feature: the blog is automatically regenerated each time a modification is detected
+* Added an autoreloading feature: the blog is automatically regenerated each
+  time a modification is detected
 * Translate the documentation into French
 * Import a blog from an RSS feed
 * Pagination support
